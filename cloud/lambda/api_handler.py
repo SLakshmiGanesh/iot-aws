@@ -76,7 +76,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         items = result.get("Items", [])
         count = max(1, len(items))
         return _response(200, {
-            "device_count": len(items),
+            "device_count": sum(1 for item in items if item.get("status", "online") == "online"),
+            "registered_device_count": len(items),
             "temperature": round(sum(float(x.get("temperature", 0)) for x in items) / count, 1),
             "humidity": round(sum(float(x.get("humidity", 0)) for x in items) / count, 1),
             "air_quality": round(sum(float(x.get("air_quality", 0)) for x in items) / count, 1),
