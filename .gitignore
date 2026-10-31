@@ -12,3 +12,4 @@ frontend/dist/
 terraform.tfstate*
 .terraform/
 data/
+cloud/lambda/deployment.zip
