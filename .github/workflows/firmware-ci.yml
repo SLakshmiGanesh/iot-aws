@@ -1,0 +1,13 @@
+name: firmware-ci
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: platformio/platformio-action@v1
+        with:
+          command: run
+          directory: firmware
