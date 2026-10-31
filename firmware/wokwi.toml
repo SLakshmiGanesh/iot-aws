@@ -1,0 +1,1 @@
+[env]\nplatform = "arduino"\nboard = "esp32-devkit-v1"\n
