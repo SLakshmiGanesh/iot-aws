@@ -240,14 +240,14 @@ resource "aws_iot_policy" "device" {
       {
         Effect   = "Allow"
         Action   = ["iot:Connect"]
-        Resource = "arn:aws:iot:${var.aws_region}:*:client/${iot:Connection.Thing.ThingName}"
+        Resource = "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:client/${iot:Connection.Thing.ThingName}"
       },
       {
         Effect   = "Allow"
         Action   = ["iot:Publish"]
         Resource = [
-          "arn:aws:iot:${var.aws_region}:*:topic/home/${iot:Connection.Thing.Attributes[home_id]}/devices/${iot:Connection.Thing.ThingName}/telemetry",
-          "arn:aws:iot:${var.aws_region}:*:topic/home/${iot:Connection.Thing.Attributes[home_id]}/devices/${iot:Connection.Thing.ThingName}/status"
+          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/home/${iot:Connection.Thing.Attributes[home_id]}/devices/${iot:Connection.Thing.ThingName}/telemetry",
+          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/home/${iot:Connection.Thing.Attributes[home_id]}/devices/${iot:Connection.Thing.ThingName}/status"
         ]
       }
     ]
