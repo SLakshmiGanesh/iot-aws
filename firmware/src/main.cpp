@@ -1,48 +1,139 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
-#include <PubSubClient.h>
+#include <MQTT.h>
 #include <DHT.h>
+#include <time.h>
+
+#if __has_include("config.h")
 #include "config.h"
+#else
+#include "config.example.h"
+#endif
+
 #ifndef DHT_TYPE
 #define DHT_TYPE DHT22
 #endif
+
 DHT dht(DHT_PIN, DHT_TYPE);
 WiFiClientSecure tls;
-PubSubClient mqtt(tls);
-unsigned long lastPublish=0, retryAt=0;
-uint32_t backoff=1000;
-String baseTopic(){ return String("home/")+HOME_ID+"/devices/"+DEVICE_ID; }
-void connectWifi(){
-  if(WiFi.status()==WL_CONNECTED)return;
+MQTTClient mqtt(512);
+unsigned long lastPublish = 0;
+unsigned long retryAt = 0;
+uint32_t backoffMs = 1000;
+bool clockConfigured = false;
+bool pendingTelemetry = false;
+char pendingPayload[256];
+
+String baseTopic() {
+  return String("home/") + HOME_ID + "/devices/" + DEVICE_ID;
+}
+
+bool synchronizeClock() {
+  if (!clockConfigured) {
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    clockConfigured = true;
+  }
+  const unsigned long started = millis();
+  while (time(nullptr) < 1700000000 && millis() - started < 10000) {
+    delay(250);
+  }
+  return time(nullptr) >= 1700000000;
+}
+
+bool connectWifi() {
+  if (WiFi.status() == WL_CONNECTED) return true;
   Serial.println("Connecting to configured Wi-Fi");
-  WiFi.begin(WIFI_SSID,WIFI_PASSWORD);
-  unsigned long start=millis();
-  while(WiFi.status()!=WL_CONNECTED && millis()-start<15000) delay(250);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  const unsigned long started = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - started < 15000) delay(250);
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Wi-Fi connection timed out");
+    return false;
+  }
+  Serial.println("Wi-Fi connected");
+  return synchronizeClock();
 }
-void connectMqtt(){
-  if(mqtt.connected() || millis()<retryAt)return;
-  connectWifi(); if(WiFi.status()!=WL_CONNECTED){ retryAt=millis()+backoff; backoff=min(backoff*2,60000UL); return; }
-  String statusTopic=baseTopic()+"/status";
-  String will="{\"device_id\":\""+String(DEVICE_ID)+"\",\"status\":\"offline\"}";
-  if(mqtt.connect(DEVICE_ID,nullptr,nullptr,statusTopic.c_str(),1,true,will.c_str())){
-    mqtt.publish(statusTopic.c_str(),"{\"status\":\"online\"}",true);
-    backoff=1000; Serial.println("MQTT connected");
-  } else { retryAt=millis()+backoff; backoff=min(backoff*2,60000UL); Serial.printf("MQTT connect failed: %d\n",mqtt.state()); }
+
+void scheduleRetry() {
+  retryAt = millis() + backoffMs;
+  backoffMs = min(backoffMs * 2, 60000UL);
 }
-void setup(){
-  Serial.begin(115200); dht.begin();
-  tls.setCACert(AWS_ROOT_CA); tls.setCertificate(DEVICE_CERT); tls.setPrivateKey(DEVICE_PRIVATE_KEY);
-  mqtt.setServer(MQTT_HOST,MQTT_PORT); mqtt.setBufferSize(512); connectWifi();
+
+void connectMqtt() {
+  if (mqtt.connected() || millis() < retryAt) return;
+  if (!connectWifi()) {
+    scheduleRetry();
+    return;
+  }
+
+  const String statusTopic = baseTopic() + "/status";
+  const char willPayload[] = "{\"device_id\":\"" DEVICE_ID "\",\"status\":\"offline\"}";
+  mqtt.setWill(statusTopic.c_str(), willPayload, true, 1);
+  if (mqtt.connect(DEVICE_ID)) {
+    mqtt.publish(statusTopic.c_str(), "{\"status\":\"online\"}", true, 1);
+    backoffMs = 1000;
+    Serial.println("MQTT connected with TLS");
+  } else {
+    Serial.printf("MQTT connect failed (error %d)\n", static_cast<int>(mqtt.lastError()));
+    scheduleRetry();
+  }
 }
-void loop(){
-  connectMqtt(); mqtt.loop();
-  if(mqtt.connected() && millis()-lastPublish>=TELEMETRY_INTERVAL_MS){
-    lastPublish=millis(); float temp=dht.readTemperature(), hum=dht.readHumidity(); int air=analogRead(MQ135_PIN);
-    if(isnan(temp)||isnan(hum)||temp < -40||temp>85||hum<0||hum>100){ Serial.println("Invalid DHT reading; skipped"); return; }
-    char payload[256]; snprintf(payload,sizeof(payload),"{\"device_id\":\"%s\",\"timestamp\":\"%lu\",\"temperature\":%.1f,\"humidity\":%.1f,\"air_quality\":%d,\"status\":\"online\"}",DEVICE_ID,(unsigned long)time(nullptr),temp,hum,air);
-    String topic=baseTopic()+"/telemetry";
-    if(mqtt.publish(topic.c_str(),payload,false)) Serial.println("Telemetry published"); else Serial.println("Telemetry publish failed");
+
+bool publishPending() {
+  if (!pendingTelemetry || !mqtt.connected()) return false;
+  const String topic = baseTopic() + "/telemetry";
+  const bool sent = mqtt.publish(topic.c_str(), pendingPayload,
+                                 static_cast<int>(strlen(pendingPayload)), false, 1);
+  if (sent) {
+    pendingTelemetry = false;
+    Serial.println("QoS 1 telemetry acknowledged");
+    return true;
+  }
+  Serial.println("QoS 1 publish failed; retaining message for retry");
+  return false;
+}
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  tls.setCACert(AWS_ROOT_CA);
+  tls.setCertificate(DEVICE_CERT);
+  tls.setPrivateKey(DEVICE_PRIVATE_KEY);
+  mqtt.begin(MQTT_HOST, MQTT_PORT, tls);
+  mqtt.setOptions(30, true, 2000);
+  mqtt.setTimeout(3000);
+  connectWifi();
+}
+
+void loop() {
+  connectMqtt();
+  mqtt.loop();
+  publishPending();
+
+  if (mqtt.connected() && !pendingTelemetry &&
+      millis() - lastPublish >= TELEMETRY_INTERVAL_MS) {
+    lastPublish = millis();
+    const float temperature = dht.readTemperature();
+    const float humidity = dht.readHumidity();
+    const int airQuality = analogRead(MQ135_PIN);
+    if (isnan(temperature) || isnan(humidity) ||
+        temperature < -40 || temperature > 85 || humidity < 0 || humidity > 100) {
+      Serial.println("Invalid sensor reading; telemetry skipped");
+      delay(20);
+      return;
+    }
+
+    const time_t now = time(nullptr);
+    snprintf(pendingPayload, sizeof(pendingPayload),
+             "{\"device_id\":\"%s\",\"timestamp\":\"%lu\","
+             "\"temperature\":%.1f,\"humidity\":%.1f,"
+             "\"air_quality\":%d,\"status\":\"online\"}",
+             DEVICE_ID, static_cast<unsigned long>(now),
+             temperature, humidity, airQuality);
+    pendingTelemetry = true;
+    publishPending();
   }
   delay(20);
 }
