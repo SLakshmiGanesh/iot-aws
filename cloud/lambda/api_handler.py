@@ -128,22 +128,24 @@ def _query_history(device_id: str, params: dict[str, str]) -> dict[str, Any]:
 def _query_alerts(limit: int) -> list[dict[str, Any]]:
     alerts: list[dict[str, Any]] = []
     for status in ("warning", "critical"):
+        status_alerts: list[dict[str, Any]] = []
         key = None
-        while len(alerts) < limit:
+        while len(status_alerts) < limit:
             kwargs: dict[str, Any] = {
                 "IndexName": "alert-status-timestamp-index",
                 "KeyConditionExpression": Key("alert_status").eq(status),
                 "FilterExpression": Attr("home_id").eq(HOME_ID),
                 "ScanIndexForward": False,
-                "Limit": min(100, limit - len(alerts)),
+                "Limit": min(100, limit - len(status_alerts)),
             }
             if key:
                 kwargs["ExclusiveStartKey"] = key
             result = telemetry.query(**kwargs)
-            alerts.extend(result.get("Items", []))
+            status_alerts.extend(result.get("Items", []))
             key = result.get("LastEvaluatedKey")
             if not key:
                 break
+        alerts.extend(status_alerts[:limit])
     alerts.sort(key=lambda row: row.get("timestamp", ""), reverse=True)
     return alerts[:limit]
 
