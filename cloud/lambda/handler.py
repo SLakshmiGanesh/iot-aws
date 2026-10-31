@@ -104,3 +104,39 @@ def handler(event, context):
         "alert_status": item["alert_status"],
     }))
     return {"stored": True, "device_id": device, "alert_status": item["alert_status"]}
+
+
+def status_handler(event, context):
+    """Update online/offline device presence from AWS IoT status/LWT topics."""
+    if not isinstance(event, dict):
+        raise ValueError("status event must be an object")
+    device = event.get("device_id")
+    status = event.get("status")
+    if not isinstance(device, str) or not 1 <= len(device) <= 64:
+        raise ValueError("invalid device_id")
+    if status not in ("online", "offline"):
+        raise ValueError("invalid device status")
+    if not DEVICES_TABLE_NAME:
+        raise RuntimeError("DEVICES_TABLE_NAME must be configured")
+
+    updated_at = datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    try:
+        boto3.resource("dynamodb").Table(DEVICES_TABLE_NAME).update_item(
+            Key={"home_id": HOME_ID, "device_id": device},
+            UpdateExpression="SET #status=:status, last_status_at=:updated_at",
+            ConditionExpression="attribute_exists(home_id)",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":status": status, ":updated_at": updated_at},
+        )
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            print(json.dumps({"event": "device_status_update_failed", "device_id": device}))
+            raise
+        print(json.dumps({"event": "status_before_first_telemetry", "device_id": device}))
+        return {"updated": False, "device_id": device}
+    except BotoCoreError:
+        print(json.dumps({"event": "device_status_update_failed", "device_id": device}))
+        raise
+
+    print(json.dumps({"event": "device_status_updated", "device_id": device, "status": status}))
+    return {"updated": True, "device_id": device, "status": status}
