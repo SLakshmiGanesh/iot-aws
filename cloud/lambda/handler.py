@@ -34,7 +34,7 @@ def _timestamp(value):
             parsed = parsed.astimezone(timezone.utc)
     except (ValueError, OverflowError, OSError):
         raise ValueError("invalid timestamp")
-    return parsed.isoformat().replace("+00:00", "Z")
+    return parsed.isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def handler(event, context):
