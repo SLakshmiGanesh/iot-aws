@@ -73,7 +73,10 @@ void connectMqtt() {
   const char willPayload[] = "{\"device_id\":\"" DEVICE_ID "\",\"status\":\"offline\"}";
   mqtt.setWill(statusTopic.c_str(), willPayload, true, 1);
   if (mqtt.connect(DEVICE_ID)) {
-    mqtt.publish(statusTopic.c_str(), "{\"status\":\"online\"}", true, 1);
+    char onlinePayload[96];
+    snprintf(onlinePayload, sizeof(onlinePayload),
+             "{\\"device_id\\":\\"%s\\",\\"status\\":\\"online\\"}", DEVICE_ID);
+    mqtt.publish(statusTopic.c_str(), onlinePayload, true, 1);
     backoffMs = 1000;
     Serial.println("MQTT connected with TLS");
   } else {
