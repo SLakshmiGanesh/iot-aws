@@ -90,8 +90,8 @@ resource "aws_iam_role_policy" "lambda" {
         Resource = aws_dynamodb_table.devices.arn
       },
       {
-        Effect   = "Allow"
-        Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+        Effect = "Allow"
+        Action = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = [
           "${aws_cloudwatch_log_group.lambda.arn}:*",
           "${aws_cloudwatch_log_group.device_status.arn}:*"
