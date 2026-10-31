@@ -29,10 +29,10 @@ class FakeTable:
 
 
 class FakeDynamo:
-    def __init__(self, table):
-        self.table = table
+    def __init__(self, tables):
+        self.tables = tables
     def Table(self, name):
-        return self.table
+        return self.tables[name]
 
 
 def sample_event():
@@ -51,7 +51,7 @@ def test_processor_persists_telemetry_and_device_registry(monkeypatch):
     devices = FakeTable()
     monkeypatch.setattr(
         processor.boto3, "resource",
-        lambda name: FakeDynamo(telemetry if name == "telemetry-test" else devices),
+        lambda _: FakeDynamo({"telemetry-test": telemetry, "devices-test": devices}),
     )
     result = processor.handler(sample_event(), None)
     assert result == {"stored": True, "device_id": "sensor-1", "alert_status": "warning"}
@@ -62,7 +62,7 @@ def test_processor_persists_telemetry_and_device_registry(monkeypatch):
 def test_processor_rejects_out_of_range_sensor_value(monkeypatch):
     event = sample_event()
     event["humidity"] = 140
-    monkeypatch.setattr(processor.boto3, "resource", lambda _: FakeDynamo(FakeTable()))
+    monkeypatch.setattr(processor.boto3, "resource", lambda _: FakeDynamo({"telemetry-test": FakeTable(), "devices-test": FakeTable()}))
     try:
         processor.handler(event, None)
         assert False, "expected validation error"
