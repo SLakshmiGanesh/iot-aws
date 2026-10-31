@@ -4,6 +4,7 @@
 #include <MQTT.h>
 #include <DHT.h>
 #include <time.h>
+#include <cstring>
 
 #if __has_include("config.h")
 #include "config.h"
