@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 os.environ.setdefault("AWS_EC2_METADATA_DISABLED", "true")
@@ -20,12 +21,18 @@ class FakeTable:
     def __init__(self, items=None):
         self.items = items or []
         self.writes = []
+        self.queries = []
+
     def put_item(self, **kwargs):
         self.writes.append(kwargs["Item"])
+
     def update_item(self, **kwargs):
         self.writes.append(kwargs)
+
     def query(self, **kwargs):
+        self.queries.append(kwargs)
         return {"Items": self.items}
+
     def get_item(self, **kwargs):
         return {"Item": self.items[0]} if self.items else {}
 
@@ -33,6 +40,7 @@ class FakeTable:
 class FakeDynamo:
     def __init__(self, tables):
         self.tables = tables
+
     def Table(self, name):
         return self.tables[name]
 
@@ -40,7 +48,9 @@ class FakeDynamo:
 def sample_event():
     return {
         "device_id": "sensor-1",
-        "timestamp": "1700000000",
+        "home_id": "home-test",
+        "topic_device_id": "sensor-1",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "temperature": 32,
         "humidity": 55,
         "air_quality": 110,
@@ -48,7 +58,7 @@ def sample_event():
     }
 
 
-def test_processor_persists_telemetry_and_device_registry(monkeypatch):
+def test_processor_persists_home_scope_and_idempotency_metadata(monkeypatch):
     telemetry = FakeTable()
     devices = FakeTable()
     monkeypatch.setattr(
@@ -56,9 +66,12 @@ def test_processor_persists_telemetry_and_device_registry(monkeypatch):
         lambda _: FakeDynamo({"telemetry-test": telemetry, "devices-test": devices}),
     )
     result = processor.handler(sample_event(), None)
-    assert result == {"stored": True, "device_id": "sensor-1", "alert_status": "warning"}
+    assert result["stored"] is True
+    assert result["alert_status"] == "warning"
+    assert telemetry.writes[0]["home_id"] == "home-test"
+    assert telemetry.writes[0]["event_id"]
     assert telemetry.writes[0]["timestamp"].endswith("Z")
-    assert devices.writes[0]["Key"]["home_id"] == "home-test"
+    assert devices.writes[0]["Key"] == {"home_id": "home-test", "device_id": "sensor-1"}
     assert devices.writes[0]["ConditionExpression"] == "attribute_not_exists(#ts) OR #ts < :ts"
 
 
@@ -73,15 +86,45 @@ def test_processor_rejects_out_of_range_sensor_value(monkeypatch):
         assert "humidity" in str(error)
 
 
-def test_read_api_returns_device_summary(monkeypatch):
-    api_handler.devices_table = FakeTable([{
+def test_processor_rejects_topic_identity_and_home_mismatch():
+    event = sample_event()
+    event["topic_device_id"] = "other-device"
+    try:
+        processor.handler(event, None)
+        assert False, "expected topic identity validation error"
+    except ValueError as error:
+        assert "topic" in str(error)
+
+    event = sample_event()
+    event["home_id"] = "another-home"
+    try:
+        processor.handler(event, None)
+        assert False, "expected home validation error"
+    except ValueError as error:
+        assert "home" in str(error)
+
+
+def test_processor_rejects_replayed_timestamp():
+    event = sample_event()
+    event["timestamp"] = "1700000000"
+    try:
+        processor.handler(event, None)
+        assert False, "expected timestamp replay validation error"
+    except ValueError as error:
+        assert "replay window" in str(error)
+
+
+def test_read_api_returns_device_summary_and_home_query(monkeypatch):
+    devices = FakeTable([{
         "device_id": "sensor-1",
         "temperature": 24,
         "humidity": 45,
         "air_quality": 95,
         "alert_status": "normal",
         "timestamp": "2026-10-31T10:00:00Z",
+        "status": "online",
     }])
+    api_handler.devices_table = devices
     response = api_handler.handler({
         "rawPath": "/api/v1/analytics/summary",
         "requestContext": {"http": {"method": "GET"}},
@@ -90,6 +133,7 @@ def test_read_api_returns_device_summary(monkeypatch):
     assert response["statusCode"] == 200
     assert body["device_count"] == 1
     assert body["temperature"] == 24
+    assert devices.queries[0]["KeyConditionExpression"] is not None
 
 
 def test_read_api_rejects_unknown_route():
@@ -101,12 +145,17 @@ def test_read_api_rejects_unknown_route():
 
 
 def test_status_handler_updates_presence(monkeypatch):
-    devices = FakeTable()
+    devices = FakeTable([{"device_id": "sensor-1"}])
     monkeypatch.setattr(
         processor.boto3, "resource",
         lambda _: FakeDynamo({"devices-test": devices}),
     )
-    result = processor.status_handler({"device_id": "sensor-1", "status": "offline"}, None)
+    result = processor.status_handler({
+        "device_id": "sensor-1",
+        "home_id": "home-test",
+        "topic_device_id": "sensor-1",
+        "status": "offline",
+    }, None)
     assert result["updated"] is True
     assert devices.writes[0]["Key"] == {"home_id": "home-test", "device_id": "sensor-1"}
     assert devices.writes[0]["ExpressionAttributeValues"][":status"] == "offline"
