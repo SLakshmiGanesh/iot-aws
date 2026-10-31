@@ -13,6 +13,12 @@ output "lambda_function_name" {
 output "api_lambda_function_name" {
   value = aws_lambda_function.api.function_name
 }
+output "device_status_lambda_name" {
+  value = aws_lambda_function.device_status.function_name
+}
+output "device_status_rule_name" {
+  value = aws_iot_topic_rule.device_status.name
+}
 output "iot_rule_name" {
   value = aws_iot_topic_rule.telemetry.name
 }
