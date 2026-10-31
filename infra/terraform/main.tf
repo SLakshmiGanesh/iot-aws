@@ -81,8 +81,13 @@ resource "aws_iam_role_policy" "lambda" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem"]
-        Resource = [aws_dynamodb_table.telemetry.arn, aws_dynamodb_table.devices.arn]
+        Action   = ["dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.telemetry.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:UpdateItem"]
+        Resource = aws_dynamodb_table.devices.arn
       },
       {
         Effect   = "Allow"
