@@ -1,0 +1,2 @@
+# Development
+Backend: `cd backend; pip install -r requirements.txt pytest httpx; PYTHONPATH=. pytest`. Frontend: `cd frontend && npm install && npm run build`. Firmware: install PlatformIO and run `pio run -d firmware` after supplying ignored local config/certificate headers. Infrastructure: `terraform fmt -check -recursive infra/terraform` and validate each root module. Tests require local dependencies; AWS infrastructure and hardware are not available in CI.
