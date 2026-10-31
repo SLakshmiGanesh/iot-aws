@@ -1,0 +1,2 @@
+# Security
+Device traffic uses MQTT TLS and unique device certificates. Never disable certificate validation. Keep device keys out of version control; rotate credentials and restrict policies by device topic. Lambda validates ranges and logs identifiers/event types only. IAM is limited to DynamoDB PutItem and CloudWatch writes. Local demo is isolated from AWS; never treat seeded local data as cloud telemetry. Restrict CORS origins for deployments. Report vulnerabilities privately to the repository owner.
