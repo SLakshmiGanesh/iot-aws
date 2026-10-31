@@ -1,7 +1,7 @@
 """AWS IoT telemetry rule target. Validates, classifies, and stores each reading."""
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
 import boto3
@@ -66,6 +66,10 @@ def handler(event, context):
         else "warning" if temperature >= temp_warning or humidity >= humidity_warning
         else "normal"
     )
+
+    retention_days = int(os.getenv("TTL_DAYS", "90"))
+    expires_at = datetime.fromisoformat(item["timestamp"].replace("Z", "+00:00")) + timedelta(days=retention_days)
+    item["expires_at"] = int(expires_at.timestamp())
 
     if not TABLE_NAME or not DEVICES_TABLE_NAME:
         raise RuntimeError("TABLE_NAME and DEVICES_TABLE_NAME must be configured")
