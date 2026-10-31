@@ -22,6 +22,8 @@ class FakeTable:
         self.writes = []
     def put_item(self, **kwargs):
         self.writes.append(kwargs["Item"])
+    def update_item(self, **kwargs):
+        self.writes.append(kwargs)
     def query(self, **kwargs):
         return {"Items": self.items}
     def get_item(self, **kwargs):
@@ -56,7 +58,8 @@ def test_processor_persists_telemetry_and_device_registry(monkeypatch):
     result = processor.handler(sample_event(), None)
     assert result == {"stored": True, "device_id": "sensor-1", "alert_status": "warning"}
     assert telemetry.writes[0]["timestamp"].endswith("Z")
-    assert devices.writes[0]["home_id"] == "home-test"
+    assert devices.writes[0]["Key"]["home_id"] == "home-test"
+    assert devices.writes[0]["ConditionExpression"] == "attribute_not_exists(#ts) OR #ts < :ts"
 
 
 def test_processor_rejects_out_of_range_sensor_value(monkeypatch):
