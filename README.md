@@ -5,11 +5,11 @@ A local-first and AWS-deployable portfolio platform for collecting ESP32 environ
 ## Architecture and capabilities
 
 - ESP32 Arduino firmware and Wokwi sensor layout for DHT22 temperature/humidity and analog air quality.
-- MQTT telemetry over TLS, topic-scoped AWS IoT policy, IoT Rules to a validating Lambda processor.
-- DynamoDB time-series telemetry table with device/time keys and an alert-status GSI; separate per-home device registry for efficient dashboard summaries.
+- MQTT telemetry over TLS with QoS 1, Thing-scoped AWS IoT policy, separate telemetry/presence IoT Rules, validating Lambdas, and retained online/offline state.
+- DynamoDB time-series telemetry table with device/time keys, alert-status GSI and 90-day configurable TTL; separate per-home registry with monotonic latest-reading and online/offline state.
 - Read-only API Gateway HTTP API backed by a least-privilege Lambda reader, CORS restricted to the CloudFront origin, and request throttling.
 - React + TypeScript dashboard with device selection, telemetry history, summary metrics, recent threshold alerts, and live refresh.
-- Private S3 origin behind CloudFront; Terraform provisions the infrastructure and emits API and website URLs.
+- Private S3 origin behind CloudFront; API Gateway is rate-limited, Lambda failures/throttles raise CloudWatch alarms, and Terraform emits API and website URLs.
 - Local SQLite demo, synthetic publisher, Docker Compose, tests, and GitHub Actions.
 
 ## Run locally
