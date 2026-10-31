@@ -1,7 +1,7 @@
 locals {
   lambda_functions = {
     telemetry_processor = aws_lambda_function.processor.function_name
-    dashboard_reader   = aws_lambda_function.api.function_name
+    dashboard_reader    = aws_lambda_function.api.function_name
   }
 }
 
