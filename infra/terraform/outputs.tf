@@ -4,11 +4,20 @@ output "aws_region" {
 output "telemetry_table_name" {
   value = aws_dynamodb_table.telemetry.name
 }
+output "devices_table_name" {
+  value = aws_dynamodb_table.devices.name
+}
 output "lambda_function_name" {
   value = aws_lambda_function.processor.function_name
 }
+output "api_lambda_function_name" {
+  value = aws_lambda_function.api.function_name
+}
 output "iot_rule_name" {
   value = aws_iot_topic_rule.telemetry.name
+}
+output "iot_device_policy_name" {
+  value = aws_iot_policy.device.name
 }
 output "dashboard_url" {
   description = "HTTPS CloudFront URL for the static dashboard."
@@ -20,4 +29,8 @@ output "dashboard_bucket_name" {
 }
 output "cloudfront_distribution_id" {
   value = aws_cloudfront_distribution.dashboard.id
+}
+output "api_url" {
+  description = "Public HTTPS API Gateway URL used by the dashboard."
+  value       = aws_apigatewayv2_api.dashboard.api_endpoint
 }
