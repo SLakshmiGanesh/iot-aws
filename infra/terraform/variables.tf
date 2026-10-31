@@ -48,3 +48,12 @@ variable "humidity_critical" {
   type    = number
   default = 75
 }
+variable "telemetry_retention_days" {
+  description = "Approximate DynamoDB TTL retention period for telemetry."
+  type        = number
+  default     = 90
+  validation {
+    condition     = var.telemetry_retention_days >= 7 && var.telemetry_retention_days <= 3650
+    error_message = "Telemetry retention must be between 7 and 3650 days."
+  }
+}
