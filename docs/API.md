@@ -1,0 +1,2 @@
+# API
+OpenAPI UI: /docs. GET /health; GET /api/v1/devices; GET /api/v1/devices/{device_id}; GET /api/v1/devices/{device_id}/telemetry?limit=100&since=&until=; GET /api/v1/devices/{device_id}/telemetry/latest; GET /api/v1/alerts; GET /api/v1/analytics/summary; GET /api/v1/analytics/history; POST /api/v1/telemetry accepts validated local readings; POST /api/v1/devices/{device_id}/commands returns a local-demo acknowledgment.
