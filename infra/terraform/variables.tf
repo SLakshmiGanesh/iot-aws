@@ -17,7 +17,12 @@ variable "environment" {
   type        = string
   default     = "dev"
 }
-variable "home_id" {\n  description = "Home identifier included in device and telemetry topics."\n  type        = string\n  default     = "demo-home"\n}\nvariable "telemetry_table_name" {
+variable "home_id" {
+  description = "Home identifier included in device and telemetry topics."
+  type        = string
+  default     = "demo-home"
+}
+variable "telemetry_table_name" {
   description = "DynamoDB table for device telemetry."
   type        = string
   default     = "home-telemetry"
