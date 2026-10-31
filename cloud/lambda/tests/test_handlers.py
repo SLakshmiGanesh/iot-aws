@@ -98,3 +98,15 @@ def test_read_api_rejects_unknown_route():
         "requestContext": {"http": {"method": "GET"}},
     }, None)
     assert response["statusCode"] == 404
+
+
+def test_status_handler_updates_presence(monkeypatch):
+    devices = FakeTable()
+    monkeypatch.setattr(
+        processor.boto3, "resource",
+        lambda _: FakeDynamo({"devices-test": devices}),
+    )
+    result = processor.status_handler({"device_id": "sensor-1", "status": "offline"}, None)
+    assert result["updated"] is True
+    assert devices.writes[0]["Key"] == {"home_id": "home-test", "device_id": "sensor-1"}
+    assert devices.writes[0]["ExpressionAttributeValues"][":status"] == "offline"
