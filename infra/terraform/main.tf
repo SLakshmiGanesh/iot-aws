@@ -234,7 +234,7 @@ resource "aws_lambda_permission" "api_gateway" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.api.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.dashboard.execution_arn}/*/*"
+  source_arn    = "${aws_apigatewayv2_api.dashboard.execution_arn}/*/*/*"
 }
 
 resource "aws_iot_policy" "device" {
