@@ -30,7 +30,7 @@ terraform apply tfplan
 terraform output
 ```
 
-Terraform outputs include `dashboard_url`, `dashboard_bucket_name`, and `cloudfront_distribution_id`. The CloudFront default certificate provides an HTTPS URL without requiring a custom domain. A custom domain and ACM certificate can be added later.
+Terraform outputs include `dashboard_url`, `api_url`, `dashboard_bucket_name`, `cloudfront_distribution_id`, and the generated IoT policy name. Telemetry expires after 90 days by default; set `telemetry_retention_days` in the Terraform plan to adjust it. CloudWatch error/throttle alarms are created without notification targets. The CloudFront default certificate provides an HTTPS URL without requiring a custom domain. A custom domain and ACM certificate can be added later.
 
 ## Publish the dashboard
 
