@@ -72,17 +72,25 @@ def handler(event, context):
     dynamodb = boto3.resource("dynamodb")
     try:
         dynamodb.Table(TABLE_NAME).put_item(Item=item)
-        dynamodb.Table(DEVICES_TABLE_NAME).put_item(Item={
-            "home_id": HOME_ID,
-            "device_id": device,
-            "timestamp": item["timestamp"],
-            "temperature": item["temperature"],
-            "humidity": item["humidity"],
-            "air_quality": item["air_quality"],
-            "status": item["status"],
-            "alert_status": item["alert_status"],
-        })
-    except (BotoCoreError, ClientError):
+        dynamodb.Table(DEVICES_TABLE_NAME).update_item(
+            Key={"home_id": HOME_ID, "device_id": device},
+            UpdateExpression="SET #ts=:ts, temperature=:temperature, humidity=:humidity, air_quality=:air_quality, #status=:status, alert_status=:alert_status",
+            ConditionExpression="attribute_not_exists(#ts) OR #ts < :ts",
+            ExpressionAttributeNames={"#ts": "timestamp", "#status": "status"},
+            ExpressionAttributeValues={
+                ":ts": item["timestamp"],
+                ":temperature": item["temperature"],
+                ":humidity": item["humidity"],
+                ":air_quality": item["air_quality"],
+                ":status": item["status"],
+                ":alert_status": item["alert_status"],
+            },
+        )
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            print(json.dumps({"event": "telemetry_write_failed", "device_id": device}))
+            raise
+    except BotoCoreError:
         print(json.dumps({"event": "telemetry_write_failed", "device_id": device}))
         raise
 
