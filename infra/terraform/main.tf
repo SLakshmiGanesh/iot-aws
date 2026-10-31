@@ -28,6 +28,10 @@ resource "aws_dynamodb_table" "telemetry" {
   point_in_time_recovery {
     enabled = true
   }
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
 }
 
 resource "aws_dynamodb_table" "devices" {
@@ -105,6 +109,7 @@ resource "aws_lambda_function" "processor" {
       TABLE_NAME         = aws_dynamodb_table.telemetry.name
       DEVICES_TABLE_NAME = aws_dynamodb_table.devices.name
       HOME_ID            = var.home_id
+      TTL_DAYS           = tostring(var.telemetry_retention_days)
       TEMP_WARNING       = tostring(var.temperature_warning)
       TEMP_CRITICAL      = tostring(var.temperature_critical)
       HUMIDITY_WARNING   = tostring(var.humidity_warning)
