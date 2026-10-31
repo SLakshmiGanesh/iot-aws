@@ -1,4 +1,4 @@
 module "platform" {
-  source="../../"
-  environment="staging"
+  source      = "../../"
+  environment = "staging"
 }
