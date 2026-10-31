@@ -1,47 +1,122 @@
-# Smart Home IoT Environmental Monitoring Platform
+# Smart Home IoT Monitoring Platform
 
-A local-first and AWS-deployable portfolio platform for collecting ESP32 environmental readings, processing alerts, querying device history, and monitoring the home from a responsive dashboard.
+A full-stack smart home monitoring project that collects environmental readings from ESP32 devices, stores telemetry, detects threshold alerts, and presents device health and history in a web dashboard.
 
-## Architecture and capabilities
+The project supports two ways to run:
 
-- ESP32 Arduino firmware and Wokwi sensor layout for DHT22 temperature/humidity and analog air quality.
-- MQTT telemetry over TLS with QoS 1, Thing-scoped AWS IoT policy, separate telemetry/presence IoT Rules, validating Lambdas, and retained online/offline state.
-- DynamoDB time-series telemetry table with device/time keys, alert-status GSI and 90-day configurable TTL; separate per-home registry with monotonic latest-reading and online/offline state.
-- Read-only API Gateway HTTP API backed by a least-privilege Lambda reader, CORS restricted to the CloudFront origin, and request throttling.
-- React + TypeScript dashboard with device selection, telemetry history, summary metrics, recent threshold alerts, and live refresh.
-- Private S3 origin behind CloudFront; API Gateway is rate-limited, Lambda failures/throttles raise CloudWatch alarms, and Terraform emits API and website URLs.
-- Local SQLite demo, synthetic publisher, Docker Compose, tests, and GitHub Actions.
+- **Local demo:** start the application with Docker Compose and explore sample telemetry without AWS hardware or credentials.
+- **AWS deployment:** use Terraform to provision the cloud pipeline and host the dashboard through CloudFront.
+
+## What the system does
+
+An ESP32 reads temperature, humidity, and air-quality sensor values and publishes them over MQTT. In AWS mode, AWS IoT Core receives the messages and routes them to Lambda for validation and processing. The processor stores readings and device status in DynamoDB. A read-only HTTP API serves dashboard data, and the React dashboard displays recent values, device availability, history, and threshold alerts.
+
+The local demo follows the same general user journey with a FastAPI service, SQLite storage, and a telemetry simulator. It is intended for development and demonstration; it does not connect to AWS.
+
+## Main features
+
+- **Device telemetry:** ESP32 firmware publishes timestamped temperature, humidity, and air-quality readings using MQTT over TLS.
+- **Device presence:** retained MQTT status messages report when a device comes online or goes offline.
+- **Telemetry processing:** AWS Lambda validates incoming messages, persists telemetry, updates the device's latest state, and marks threshold alerts.
+- **History and alert queries:** DynamoDB stores readings by device and time, with an alert index and configurable retention.
+- **Monitoring dashboard:** React and TypeScript UI provides device selection, summary metrics, history charts, alert listings, and periodic refresh.
+- **Cloud delivery:** private S3 website assets are served through CloudFront; API Gateway provides the dashboard's read-only data API.
+- **Local development:** FastAPI, SQLite, sample data, a simulator, Docker Compose, and automated checks make it possible to run the demo without cloud resources.
+
+## Architecture
+
+### AWS mode
+
+```text
+ESP32 sensors
+    │ MQTT over TLS
+    ▼
+AWS IoT Core
+    │ IoT rules
+    ▼
+Lambda processors ───────► DynamoDB telemetry and device registry
+                                  ▲
+                                  │ read-only queries
+                                  │
+CloudFront ──► React dashboard ──► API Gateway ──► API Lambda
+    │
+    └── serves static files from a private S3 bucket
+```
+
+CloudWatch alarms track selected Lambda failures and throttles. API CORS is configured for the deployed dashboard origin, and API throttling limits request volume.
+
+### Local demo
+
+```text
+Telemetry simulator ──► FastAPI service ──► SQLite
+                              ▲
+                              │
+                        React dashboard
+```
 
 ## Run locally
 
-Install Docker Desktop with Compose, then run:
+Requirements: Docker Desktop with Docker Compose.
+
+From the repository root, run:
 
 ```sh
 docker compose up --build
 ```
 
-Dashboard: http://localhost:5173. API docs: http://localhost:8000/docs. Local mode seeds demo readings in SQLite and does not connect to AWS.
+Then open:
+
+- Dashboard: http://localhost:5173
+- API documentation: http://localhost:8000/docs
+
+The local application uses SQLite and demo readings. It does not create AWS resources or require AWS credentials.
 
 ## Deploy to AWS
 
-Follow [AWS deployment](docs/AWS_DEPLOYMENT.md). Terraform creates the AWS IoT telemetry pipeline, DynamoDB tables, Lambda functions, read-only API Gateway, CloudFront, and private S3 hosting. The guide builds the Lambda package, reviews the Terraform plan, applies infrastructure explicitly, then builds/uploads the dashboard with the generated API URL.
+See [AWS deployment instructions](docs/AWS_DEPLOYMENT.md) for prerequisites and commands.
 
-No AWS resources have been deployed from this repository. The project does not provision ECS/Fargate or IoT certificates. Provision a Thing and certificate, set its `home_id` Thing attribute, and attach the generated IoT policy before connecting firmware. Never commit credentials or private device keys.
+The Terraform configuration provisions the IoT telemetry pipeline, DynamoDB tables, Lambda functions, read-only API Gateway, CloudFront distribution, and private S3 hosting. The deployment guide builds the Lambda package, reviews the Terraform plan, applies infrastructure, then builds and uploads the dashboard using the generated API URL.
 
-## Repository map
+**This repository has not been deployed to AWS by this project.** A successful deployment requires an operator-authenticated AWS session and an explicit review of the Terraform plan. AWS usage may incur charges.
 
-- `backend/`: FastAPI/SQLite local mode and tests.
-- `frontend/`: React monitoring dashboard.
-- `firmware/`: ESP32 firmware and Wokwi wiring.
-- `cloud/lambda/`: telemetry processor, API handler, and package builder.
-- `infra/terraform/`: AWS resources and environment configuration.
-- `simulator/`: local telemetry publisher.
-- `docs/`: setup, architecture, API, and security.
+The infrastructure does not provision IoT certificates or register physical devices. Before connecting firmware, create an AWS IoT Thing and certificate, set the Thing's `home_id` attribute, and attach the generated IoT policy. Keep AWS credentials, certificates, and private keys out of the repository.
 
-## Tests and current limits
+## Repository layout
 
-Backend: `cd backend && pip install -r requirements.txt pytest httpx && PYTHONPATH=. pytest`. Frontend: `cd frontend && npm install && npm run build`. Lambda and Terraform tests are included in repository CI where supported.
+| Path | Purpose |
+| --- | --- |
+| `backend/` | FastAPI local demo API, SQLite storage, and backend tests |
+| `frontend/` | React and TypeScript monitoring dashboard |
+| `firmware/` | ESP32 firmware and Wokwi sensor layout |
+| `cloud/lambda/` | AWS telemetry processor, API handler, and package builder |
+| `infra/terraform/` | AWS resource definitions and deployment configuration |
+| `simulator/` | Local telemetry publisher for the demo |
+| `docs/` | Deployment, architecture, API, and security guides |
 
-Cloud mode depends on an operator-authenticated AWS profile and a reviewed plan/apply. The CloudFront dashboard reads telemetry through the public, read-only API Gateway endpoint. Command publishing and ECS hosting are not implemented. Wokwi cannot provision real AWS IoT certificates. Thresholds are configurable demonstration thresholds, not health or safety standards.
+## Checks
 
-Reference architecture inspiration: https://github.com/khaoula-ghz/smart-home-iot-monitoring (independently implemented).
+Backend tests:
+
+```sh
+cd backend
+pip install -r requirements.txt pytest httpx
+$env:PYTHONPATH="."
+pytest
+```
+
+Frontend production build:
+
+```sh
+cd frontend
+npm install
+npm run build
+```
+
+Lambda and Terraform checks are also configured in GitHub Actions where the required tools are available.
+
+## Scope and limitations
+
+- The AWS dashboard API is read-only; device command publishing is not implemented.
+- ECS/Fargate hosting is not part of this project.
+- Wokwi can simulate the firmware and wiring, but it does not provision AWS IoT certificates.
+- Alert thresholds are demonstration settings and are not health or safety guidance.
