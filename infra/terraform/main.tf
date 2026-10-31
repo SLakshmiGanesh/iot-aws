@@ -129,7 +129,7 @@ resource "aws_lambda_function" "processor" {
 resource "aws_iot_topic_rule" "telemetry" {
   name        = "${replace(var.project_name, "-", "_")}_${var.environment}_telemetry_to_lambda"
   enabled     = true
-  sql         = "SELECT * FROM 'home/+/devices/+/telemetry'"
+  sql         = "SELECT *, topic(2) AS home_id, topic(4) AS topic_device_id FROM 'home/+/devices/+/telemetry'"
   sql_version = "2016-03-23"
   lambda {
     function_arn = aws_lambda_function.processor.arn
@@ -172,7 +172,7 @@ resource "aws_lambda_function" "device_status" {
 resource "aws_iot_topic_rule" "device_status" {
   name        = "${replace(var.project_name, "-", "_")}_${var.environment}_device_status_to_lambda"
   enabled     = true
-  sql         = "SELECT * FROM 'home/+/devices/+/status'"
+  sql         = "SELECT *, topic(2) AS home_id, topic(4) AS topic_device_id FROM 'home/+/devices/+/status'"
   sql_version = "2016-03-23"
 
   lambda {
