@@ -1,4 +1,4 @@
-"""Build a self-contained Lambda zip; no credentials or local config are copied."""
+"""Build deployment.zip containing both Lambda handlers and pinned dependencies."""
 from pathlib import Path
 import shutil
 import subprocess
@@ -17,7 +17,8 @@ def main() -> None:
              "--no-compile", "-r", str(ROOT / "requirements.txt"), "-t", str(staging)],
             check=True,
         )
-        shutil.copy2(ROOT / "handler.py", staging / "handler.py")
+        for name in ("handler.py", "api_handler.py"):
+            shutil.copy2(ROOT / name, staging / name)
         with ZipFile(OUTPUT, "w", ZIP_DEFLATED) as archive:
             for file in sorted(staging.rglob("*")):
                 if file.is_file() and "__pycache__" not in file.parts:
