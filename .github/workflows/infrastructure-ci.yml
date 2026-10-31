@@ -8,7 +8,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-      - run: terraform fmt -recursive infra/terraform
-git diff --no-ext-diff --unified=3 -- infra/terraform
+      - name: Format Terraform and report changes
+        run: |
+          terraform fmt -recursive infra/terraform
+          git diff --no-ext-diff --unified=3 -- infra/terraform
       - run: terraform -chdir=infra/terraform init -backend=false
       - run: terraform -chdir=infra/terraform validate
