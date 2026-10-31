@@ -87,7 +87,10 @@ resource "aws_iam_role_policy" "lambda" {
       {
         Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
-        Resource = "${aws_cloudwatch_log_group.lambda.arn}:*"
+        Resource = [
+          "${aws_cloudwatch_log_group.lambda.arn}:*",
+          "${aws_cloudwatch_log_group.device_status.arn}:*"
+        ]
       }
     ]
   })
@@ -134,6 +137,50 @@ resource "aws_lambda_permission" "iot" {
   function_name = aws_lambda_function.processor.function_name
   principal     = "iot.amazonaws.com"
   source_arn    = aws_iot_topic_rule.telemetry.arn
+}
+
+
+resource "aws_cloudwatch_log_group" "device_status" {
+  name              = "/aws/lambda/${var.project_name}-${var.environment}-device-status"
+  retention_in_days = 30
+}
+
+resource "aws_lambda_function" "device_status" {
+  function_name    = "${var.project_name}-${var.environment}-device-status"
+  role             = aws_iam_role.lambda.arn
+  runtime          = "python3.12"
+  handler          = "handler.status_handler"
+  filename         = var.lambda_zip_path
+  source_code_hash = filebase64sha256(var.lambda_zip_path)
+  timeout          = 10
+  memory_size      = 128
+  depends_on       = [aws_iam_role_policy.lambda, aws_cloudwatch_log_group.device_status]
+
+  environment {
+    variables = {
+      DEVICES_TABLE_NAME = aws_dynamodb_table.devices.name
+      HOME_ID            = var.home_id
+    }
+  }
+}
+
+resource "aws_iot_topic_rule" "device_status" {
+  name        = "${replace(var.project_name, "-", "_")}_${var.environment}_device_status_to_lambda"
+  enabled     = true
+  sql         = "SELECT * FROM 'home/+/devices/+/status'"
+  sql_version = "2016-03-23"
+
+  lambda {
+    function_arn = aws_lambda_function.device_status.arn
+  }
+}
+
+resource "aws_lambda_permission" "iot_device_status" {
+  statement_id  = "AllowIoTStatusRule"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.device_status.function_name
+  principal     = "iot.amazonaws.com"
+  source_arn    = aws_iot_topic_rule.device_status.arn
 }
 
 resource "aws_iam_role" "api" {
