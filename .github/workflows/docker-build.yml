@@ -1,0 +1,11 @@
+name: docker-build
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t home-monitor-api ./backend
+      - run: docker build -t home-monitor-dashboard ./frontend
