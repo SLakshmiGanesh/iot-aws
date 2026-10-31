@@ -3,8 +3,11 @@
 ```mermaid
 flowchart LR
   ESP[ESP32 and sensors] -->|MQTT TLS| IOT[AWS IoT Core]
-  IOT --> RULE[IoT Rule]
+  IOT --> RULE[Telemetry IoT Rule]
+  IOT --> PRES[Status/LWT IoT Rule]
   RULE --> PROC[Telemetry processor Lambda]
+  PRES --> STATUS[Presence Lambda]
+  STATUS --> REG
   PROC --> HIST[(DynamoDB telemetry)]
   PROC --> REG[(Per-home device registry)]
   HIST --> READ[Read API Lambda]
