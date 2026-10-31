@@ -61,9 +61,9 @@ resource "aws_iam_role" "lambda" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 }
@@ -141,9 +141,9 @@ resource "aws_iam_role" "api" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 }
@@ -160,8 +160,8 @@ resource "aws_iam_role_policy" "api" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["dynamodb:Query", "dynamodb:GetItem"]
+        Effect = "Allow"
+        Action = ["dynamodb:Query", "dynamodb:GetItem"]
         Resource = [
           aws_dynamodb_table.telemetry.arn,
           "${aws_dynamodb_table.telemetry.arn}/index/*",
@@ -253,8 +253,8 @@ resource "aws_iot_policy" "device" {
         Resource = "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:client/$${iot:Connection.Thing.ThingName}"
       },
       {
-        Effect   = "Allow"
-        Action   = ["iot:Publish"]
+        Effect = "Allow"
+        Action = ["iot:Publish"]
         Resource = [
           "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/home/$${iot:Connection.Thing.Attributes[home_id]}/devices/$${iot:Connection.Thing.ThingName}/telemetry",
           "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/home/$${iot:Connection.Thing.Attributes[home_id]}/devices/$${iot:Connection.Thing.ThingName}/status"
