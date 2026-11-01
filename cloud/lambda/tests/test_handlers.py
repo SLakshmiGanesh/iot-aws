@@ -181,3 +181,20 @@ def test_duplicate_telemetry_is_reported_without_overwriting(monkeypatch):
     assert result["stored"] is False
     assert result["device_id"] == "sensor-1"
     assert len(devices.writes) == 1
+
+
+def test_read_api_rejects_invalid_pagination_tokens():
+    response = api_handler.handler({
+        "rawPath": "/api/v1/devices",
+        "queryStringParameters": {"next_token": "not-a-valid-token"},
+        "requestContext": {"http": {"method": "GET"}},
+    }, None)
+    assert response["statusCode"] == 400
+
+    api_handler.devices_table = FakeTable([{"device_id": "sensor-1"}])
+    response = api_handler.handler({
+        "rawPath": "/api/v1/devices/sensor-1/telemetry",
+        "queryStringParameters": {"next_token": "not-a-valid-token"},
+        "requestContext": {"http": {"method": "GET"}},
+    }, None)
+    assert response["statusCode"] == 400
