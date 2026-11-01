@@ -56,6 +56,12 @@ resource "aws_dynamodb_table" "devices" {
   }
 }
 
+resource "aws_sqs_queue" "telemetry_failures" {
+  name                      = "${var.project_name}-${var.environment}-telemetry-failures"
+  message_retention_seconds = 1209600
+  sqs_managed_sse_enabled   = true
+}
+
 resource "aws_iam_role" "lambda" {
   name = "${var.project_name}-${var.environment}-processor"
   assume_role_policy = jsonencode({
@@ -90,6 +96,11 @@ resource "aws_iam_role_policy" "lambda" {
         Resource = aws_dynamodb_table.devices.arn
       },
       {
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = aws_sqs_queue.telemetry_failures.arn
+      },
+      {
         Effect = "Allow"
         Action = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = [
@@ -122,6 +133,30 @@ resource "aws_lambda_function" "processor" {
       TEMP_CRITICAL      = tostring(var.temperature_critical)
       HUMIDITY_WARNING   = tostring(var.humidity_warning)
       HUMIDITY_CRITICAL  = tostring(var.humidity_critical)
+    }
+  }
+}
+
+resource "aws_lambda_function_event_invoke_config" "processor" {
+  function_name                = aws_lambda_function.processor.function_name
+  maximum_event_age_in_seconds = 3600
+  maximum_retry_attempts       = 2
+
+  destination_config {
+    on_failure {
+      destination = aws_sqs_queue.telemetry_failures.arn
+    }
+  }
+}
+
+resource "aws_lambda_function_event_invoke_config" "device_status" {
+  function_name                = aws_lambda_function.device_status.function_name
+  maximum_event_age_in_seconds = 3600
+  maximum_retry_attempts       = 2
+
+  destination_config {
+    on_failure {
+      destination = aws_sqs_queue.telemetry_failures.arn
     }
   }
 }
