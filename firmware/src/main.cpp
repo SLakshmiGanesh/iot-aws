@@ -24,7 +24,7 @@ unsigned long retryAt = 0;
 uint32_t backoffMs = 1000;
 bool clockConfigured = false;
 bool pendingTelemetry = false;
-char pendingPayload[256];
+char pendingPayload[384];
 
 String baseTopic() {
   return String("home/") + HOME_ID + "/devices/" + DEVICE_ID;
@@ -130,12 +130,17 @@ void loop() {
     }
 
     const time_t now = time(nullptr);
-    snprintf(pendingPayload, sizeof(pendingPayload),
-             "{\"device_id\":\"%s\",\"timestamp\":\"%lu\","
-             "\"temperature\":%.1f,\"humidity\":%.1f,"
-             "\"air_quality\":%d,\"status\":\"online\"}",
-             DEVICE_ID, static_cast<unsigned long>(now),
-             temperature, humidity, airQuality);
+    const unsigned long epoch = static_cast<unsigned long>(now);
+    const int payloadLength = snprintf(pendingPayload, sizeof(pendingPayload),
+             "{\"device_id\":\"%s\",\"event_id\":\"%s-%lu\","
+             "\"timestamp\":\"%lu\",\"temperature\":%.1f,"
+             "\"humidity\":%.1f,\"air_quality\":%d,\"status\":\"online\"}",
+             DEVICE_ID, DEVICE_ID, epoch, epoch, temperature, humidity, airQuality);
+    if (payloadLength < 0 || static_cast<size_t>(payloadLength) >= sizeof(pendingPayload)) {
+      Serial.println("Telemetry payload exceeded buffer; sample skipped");
+      delay(20);
+      return;
+    }
     pendingTelemetry = true;
     publishPending();
   }
