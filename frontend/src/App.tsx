@@ -90,7 +90,7 @@ export default function App() {
       ].map(([label, value, hint]) => <article className="card" key={label}><span>{label}</span><strong>{value}</strong><small>{hint}</small></article>)}
     </section>
     <section className="panel">
-      <div className="panelHead"><div><h2>Environmental trends</h2><p>{selectedDevice || 'Select a device'} · recent sensor readings</p></div><span className="live"><i /> LIVE</span></div>
+      <div className="panelHead"><div><h2>Environmental trends</h2><p>{selectedDevice || 'Select a device'} · recent sensor readings</p></div><span className="live" aria-label="Automatically refreshes every 15 seconds"><i /> POLLING · 15S</span></div>
       <div className="chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={history}>
         <defs><linearGradient id="temp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4cc9aa" stopOpacity={.3}/><stop offset="95%" stopColor="#4cc9aa" stopOpacity={0}/></linearGradient></defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#263542"/>
