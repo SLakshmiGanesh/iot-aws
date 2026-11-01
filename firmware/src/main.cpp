@@ -130,12 +130,13 @@ void loop() {
     }
 
     const time_t now = time(nullptr);
-    const unsigned long epoch = static_cast<unsigned long>(now);
+    const unsigned long long epochMs =
+        static_cast<unsigned long long>(now) * 1000ULL + (millis() % 1000UL);
     const int payloadLength = snprintf(pendingPayload, sizeof(pendingPayload),
-             "{\"device_id\":\"%s\",\"event_id\":\"%s-%lu\","
-             "\"timestamp\":\"%lu\",\"temperature\":%.1f,"
+             "{\"device_id\":\"%s\",\"event_id\":\"%s-%llu\","
+             "\"timestamp\":\"%llu\",\"temperature\":%.1f,"
              "\"humidity\":%.1f,\"air_quality\":%d,\"status\":\"online\"}",
-             DEVICE_ID, DEVICE_ID, epoch, epoch, temperature, humidity, airQuality);
+             DEVICE_ID, DEVICE_ID, epochMs, epochMs, temperature, humidity, airQuality);
     if (payloadLength < 0 || static_cast<size_t>(payloadLength) >= sizeof(pendingPayload)) {
       Serial.println("Telemetry payload exceeded buffer; sample skipped");
       delay(20);
