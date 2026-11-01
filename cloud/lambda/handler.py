@@ -56,6 +56,7 @@ def _log(event, **fields):
 def handler(event, context):
     if not isinstance(event, dict):
         raise ValueError("event must be an object")
+    request_id = getattr(context, "aws_request_id", None)
     device = event.get("device_id")
     if not _valid_device(device):
         raise ValueError("invalid device_id")
@@ -117,10 +118,10 @@ def handler(event, context):
         )
     except ClientError as error:
         if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
-            _log("telemetry_write_failed", device_id=device)
+            _log("telemetry_write_failed", request_id=request_id, device_id=device)
             raise
         duplicate = True
-        _log("duplicate_telemetry_ignored", device_id=device, event_id=item["event_id"])
+        _log("duplicate_telemetry_ignored", request_id=request_id, device_id=device, event_id=item["event_id"])
     except BotoCoreError:
         _log("telemetry_write_failed", device_id=device)
         raise
@@ -143,15 +144,15 @@ def handler(event, context):
     except ClientError as error:
         code = error.response.get("Error", {}).get("Code")
         if code == "ConditionalCheckFailedException":
-            _log("stale_latest_reading_ignored", device_id=device, timestamp=timestamp)
+            _log("stale_latest_reading_ignored", request_id=request_id, device_id=device, timestamp=timestamp)
         else:
-            _log("device_registry_update_failed", device_id=device)
+            _log("device_registry_update_failed", request_id=request_id, device_id=device)
             raise
     except BotoCoreError:
         _log("device_registry_update_failed", device_id=device)
         raise
 
-    _log("telemetry_processed", device_id=device, event_id=item["event_id"], alert_status=item["alert_status"], duplicate=duplicate)
+    _log("telemetry_processed", request_id=request_id, device_id=device, event_id=item["event_id"], alert_status=item["alert_status"], duplicate=duplicate)
     return {"stored": not duplicate, "device_id": device, "event_id": item["event_id"], "alert_status": item["alert_status"]}
 
 
@@ -159,6 +160,7 @@ def status_handler(event, context):
     """Update online/offline status from AWS IoT status and Last Will topics."""
     if not isinstance(event, dict):
         raise ValueError("status event must be an object")
+    request_id = getattr(context, "aws_request_id", None)
     device = event.get("device_id")
     status = event.get("status")
     if not _valid_device(device):
@@ -185,13 +187,13 @@ def status_handler(event, context):
     except ClientError as error:
         code = error.response.get("Error", {}).get("Code")
         if code == "ConditionalCheckFailedException":
-            _log("stale_or_unregistered_status_ignored", device_id=device)
+            _log("stale_or_unregistered_status_ignored", request_id=request_id, device_id=device)
             return {"updated": False, "device_id": device}
-        _log("device_status_update_failed", device_id=device)
+        _log("device_status_update_failed", request_id=request_id, device_id=device)
         raise
     except BotoCoreError:
         _log("device_status_update_failed", device_id=device)
         raise
 
-    _log("device_status_updated", device_id=device, status=status)
+    _log("device_status_updated", request_id=request_id, device_id=device, status=status)
     return {"updated": True, "device_id": device, "status": status}
