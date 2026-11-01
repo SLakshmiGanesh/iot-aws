@@ -76,3 +76,20 @@ def test_time_range_must_be_ordered_and_timezone_aware(client):
         params={"since": "2026-11-01T00:00:00"},
     )
     assert response.status_code == 400
+
+
+def test_non_demo_ingestion_requires_token(client, monkeypatch):
+    monkeypatch.setattr(main, "DEMO_MODE", False)
+    monkeypatch.setattr(main, "INGESTION_API_TOKEN", "test-only-token")
+    payload = sample_reading(timestamp="2026-11-01T11:00:00+00:00")
+
+    denied = client.post("/api/v1/telemetry", json=payload)
+    assert denied.status_code == 401
+
+    accepted = client.post(
+        "/api/v1/telemetry",
+        json=payload,
+        headers={"X-Ingestion-Token": "test-only-token"},
+    )
+    assert accepted.status_code == 201
+    assert accepted.json()["stored"] is True
