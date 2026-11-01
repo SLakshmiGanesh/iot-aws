@@ -17,7 +17,7 @@ Telemetry items also contain `home_id`, `event_id`, temperature, humidity, air q
 - Partition key: `home_id`.
 - Sort key: `device_id`.
 - Latest telemetry fields are conditionally updated only when their timestamp is newer.
-- Presence fields include online/offline status and last status update time.
+- Presence fields include online/offline status, last status update time, connection `session_id`, and `status_sequence`. Session and sequence conditions stop a delayed Last Will from an earlier connection from replacing newer status.
 
 ## Timestamp and identity rules
 
