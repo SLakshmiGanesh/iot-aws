@@ -209,15 +209,27 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             return _response(404, {"error": {"code": "not_found", "message": "Device not found"}})
         if len(suffix) >= 2 and suffix[1] == "telemetry":
             if len(suffix) == 3 and suffix[2] == "latest":
-                result = telemetry.query(
-                    KeyConditionExpression=Key("device_id").eq(device_id),
-                    FilterExpression=Attr("home_id").eq(HOME_ID),
-                    ScanIndexForward=False,
-                    Limit=100,
-                )
-                items = result.get("Items", [])
-                if items:
-                    return _response(200, max(items, key=lambda item: item.get("timestamp", "")))
+                key = None
+                latest = None
+                while True:
+                    kwargs: dict[str, Any] = {
+                        "KeyConditionExpression": Key("device_id").eq(device_id),
+                        "FilterExpression": Attr("home_id").eq(HOME_ID),
+                        "ScanIndexForward": False,
+                        "Limit": 100,
+                    }
+                    if key:
+                        kwargs["ExclusiveStartKey"] = key
+                    result = telemetry.query(**kwargs)
+                    candidates = result.get("Items", [])
+                    if candidates:
+                        latest = max(candidates, key=lambda item: item.get("timestamp", ""))
+                        break
+                    key = result.get("LastEvaluatedKey")
+                    if not key:
+                        break
+                if latest:
+                    return _response(200, latest)
                 return _response(404, {"error": {"code": "not_found", "message": "No telemetry for device"}})
             return _query_history(device_id, params)
         result = devices_table.get_item(Key={"home_id": HOME_ID, "device_id": device_id})
