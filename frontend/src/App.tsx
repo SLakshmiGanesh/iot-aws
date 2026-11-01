@@ -23,6 +23,7 @@ type Reading = {
 type Device = {
   device_id: string;
   timestamp?: string;
+  latest?: string;
   last_status_at?: string;
   status?: string;
   temperature?: number;
@@ -190,7 +191,7 @@ export default function App() {
       {devices.length ? <div className="fleetList">{devices.map((device) =>
         <button type="button" className="fleetRow" key={device.device_id} onClick={() => { setSelectedDevice(device.device_id); setView('analytics'); }}>
           <span className={'deviceStatus ' + (device.status === 'online' ? 'online' : 'offline')}/>
-          <span className="fleetIdentity"><strong>{device.device_id}</strong><small>Last reading: {device.timestamp || 'No reading timestamp'}</small></span>
+          <span className="fleetIdentity"><strong>{device.device_id}</strong><small>Last reading: {device.timestamp || device.latest || 'No reading timestamp'}</small></span>
           <span className="fleetMetric">{device.temperature ?? '—'}°C</span>
           <span className="fleetMetric">{device.humidity ?? '—'}% RH</span>
           <span className="fleetState">{device.status || 'unknown'}</span>
@@ -201,10 +202,10 @@ export default function App() {
     {view === 'analytics' && <>{chart}<section className="panel">
       <div className="panelHead"><div><h2>Selected device</h2><p>{selectedDevice || 'No device selected'}</p></div></div>
       {selectedDevice && <div className="detailMetrics">
-        <span><small>Temperature</small><strong>{history.at(-1)?.temperature ?? '—'}°C</strong></span>
-        <span><small>Humidity</small><strong>{history.at(-1)?.humidity ?? '—'}%</strong></span>
-        <span><small>Air quality index</small><strong>{history.at(-1)?.air_quality ?? '—'}</strong></span>
-        <span><small>Latest sample</small><strong>{history.at(-1)?.timestamp ? new Date(history.at(-1)!.timestamp).toLocaleString() : '—'}</strong></span>
+        <span><small>Temperature</small><strong>{history[history.length - 1]?.temperature ?? '—'}°C</strong></span>
+        <span><small>Humidity</small><strong>{history[history.length - 1]?.humidity ?? '—'}%</strong></span>
+        <span><small>Air quality index</small><strong>{history[history.length - 1]?.air_quality ?? '—'}</strong></span>
+        <span><small>Latest sample</small><strong>{history[history.length - 1]?.timestamp ? new Date(history[history.length - 1].timestamp).toLocaleString() : '—'}</strong></span>
       </div>}
     </section></>}
 
