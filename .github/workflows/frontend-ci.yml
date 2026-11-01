@@ -17,3 +17,4 @@ jobs:
           cache-dependency-path: frontend/package.json
       - run: npm install
       - run: npm run build
+      - run: npm test
