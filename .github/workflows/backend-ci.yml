@@ -14,5 +14,5 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt pytest httpx ruff
-      - run: ruff check --select E4,E7,E9,F backend cloud/lambda
+      - run: ruff check --select E4,E7,E9,F . ../cloud/lambda
       - run: PYTHONPATH=. pytest -q
