@@ -2,7 +2,7 @@
 
 ## Device identity and telemetry
 
-Use a unique AWS IoT certificate per physical device and attach it to a Thing. Attach the Terraform-created policy and set the Thing's `home_id` attribute before connecting. Policy variables scope connect to the Thing and publish to only that Thing's telemetry/status topic paths. Provision private keys outside source control; rotate certificates and revoke compromised identities. Firmware validates the configured AWS root CA and must never disable TLS verification.
+Use a unique AWS IoT certificate per physical device and attach it to a Thing. Attach the Terraform-created policy and set the Thing's `home_id` attribute before connecting. Policy variables scope connect to the Thing and publish to only that Thing's telemetry/status topic paths. Provision private keys outside source control; rotate certificates and revoke compromised identities. Firmware validates the configured AWS root CA and must never disable TLS verification. Retained online/offline status includes a connection session ID and sequence; the processor conditionally ignores stale presence events from earlier connections.
 
 The IoT rules enrich events with home and device identity from the topic. The processor validates those fields, identifier format, sensor ranges, and timestamp replay bounds. It conditionally writes telemetry and advances device latest state only for newer timestamps. Lambda asynchronous invocations retry a bounded number of times and send failures to an encrypted SQS queue.
 
