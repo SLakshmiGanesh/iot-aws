@@ -74,14 +74,16 @@ void connectMqtt() {
       static_cast<unsigned long long>(time(nullptr)) * 1000ULL + (millis() % 1000UL);
   char willPayload[160];
   snprintf(willPayload, sizeof(willPayload),
-           "{\"device_id\":\"%s\",\"status\":\"offline\",\"timestamp\":\"%llu\"}",
-           DEVICE_ID, sessionTimestampMs);
+           "{\"device_id\":\"%s\",\"status\":\"offline\",\"timestamp\":\"%llu\","
+           "\"session_id\":\"%llu\",\"status_sequence\":1}",
+           DEVICE_ID, sessionTimestampMs, sessionTimestampMs);
   mqtt.setWill(statusTopic.c_str(), willPayload, true, 1);
   if (mqtt.connect(DEVICE_ID)) {
     char onlinePayload[160];
     snprintf(onlinePayload, sizeof(onlinePayload),
-             "{\"device_id\":\"%s\",\"status\":\"online\",\"timestamp\":\"%llu\"}",
-             DEVICE_ID, sessionTimestampMs);
+             "{\"device_id\":\"%s\",\"status\":\"online\",\"timestamp\":\"%llu\","
+             "\"session_id\":\"%llu\",\"status_sequence\":0}",
+             DEVICE_ID, sessionTimestampMs, sessionTimestampMs);
     mqtt.publish(statusTopic.c_str(), onlinePayload, true, 1);
     backoffMs = 1000;
     Serial.println("MQTT connected with TLS");
