@@ -4,7 +4,7 @@ from __future__ import annotations
 import base64
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from urllib.parse import unquote
@@ -89,13 +89,16 @@ def _query_history(device_id: str, params: dict[str, str]) -> dict[str, Any]:
 
     since, until = params.get("since"), params.get("until")
     try:
-        for value in (since, until):
-            if value:
-                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-                if parsed.tzinfo is None:
-                    raise ValueError
-        if since and until and datetime.fromisoformat(since.replace("Z", "+00:00")) > datetime.fromisoformat(until.replace("Z", "+00:00")):
+        parsed_since = datetime.fromisoformat(since.replace("Z", "+00:00")) if since else None
+        parsed_until = datetime.fromisoformat(until.replace("Z", "+00:00")) if until else None
+        if any(value is not None and value.tzinfo is None for value in (parsed_since, parsed_until)):
             raise ValueError
+        if parsed_since and parsed_until and parsed_since > parsed_until:
+            raise ValueError
+        if parsed_since:
+            since = parsed_since.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+        if parsed_until:
+            until = parsed_until.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
     except ValueError:
         return _response(400, {"error": {"code": "invalid_time_range", "message": "since and until must be timezone-aware ISO timestamps with since <= until"}})
 
@@ -109,6 +112,10 @@ def _query_history(device_id: str, params: dict[str, str]) -> dict[str, Any]:
 
     items: list[dict[str, Any]] = []
     key = _decode_token(params.get("next_token"))
+    if params.get("next_token") and (
+        key is None or key.get("device_id") != device_id or not isinstance(key.get("timestamp"), str)
+    ):
+        return _response(400, {"error": {"code": "invalid_next_token", "message": "next_token is invalid for this device"}})
     while len(items) < limit:
         kwargs: dict[str, Any] = {
             "KeyConditionExpression": condition,
@@ -169,8 +176,10 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         except (TypeError, ValueError):
             return _response(400, {"error": {"code": "invalid_limit", "message": "limit must be between 1 and 500"}})
         token = _decode_token(params.get("next_token"))
-        if params.get("next_token") and token is None:
-            return _response(400, {"error": {"code": "invalid_next_token", "message": "next_token is invalid"}})
+        if params.get("next_token") and (
+            token is None or token.get("home_id") != HOME_ID or not isinstance(token.get("device_id"), str)
+        ):
+            return _response(400, {"error": {"code": "invalid_next_token", "message": "next_token is invalid for this home"}})
         items, next_key = _query_devices(limit, token)
         return _response(200, {"items": items, "total": len(items), "next_token": _encode_token(next_key)})
     if method == "GET" and path == "/api/v1/analytics/summary":
