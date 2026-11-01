@@ -132,10 +132,12 @@ def test_read_api_returns_device_summary_and_home_query(monkeypatch):
     api_handler.devices_table = devices
     response = api_handler.handler({
         "rawPath": "/api/v1/analytics/summary",
-        "requestContext": {"http": {"method": "GET"}},
+        "requestContext": {"requestId": "api-test-id", "http": {"method": "GET"}},
     }, None)
     body = json.loads(response["body"])
     assert response["statusCode"] == 200
+    assert response["headers"]["x-request-id"] == "api-test-id"
+    assert response["headers"]["cache-control"] == "no-store"
     assert body["device_count"] == 1
     assert body["temperature"] == 24
     assert devices.queries[0]["KeyConditionExpression"] is not None
