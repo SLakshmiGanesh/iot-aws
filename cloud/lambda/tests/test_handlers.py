@@ -162,6 +162,8 @@ def test_status_handler_updates_presence(monkeypatch):
         "home_id": "home-test",
         "topic_device_id": "sensor-1",
         "status": "offline",
+        "session_id": "1793530000000",
+        "status_sequence": 1,
     }, None)
     assert result["updated"] is True
     assert devices.writes[0]["Key"] == {"home_id": "home-test", "device_id": "sensor-1"}
@@ -200,3 +202,18 @@ def test_read_api_rejects_invalid_pagination_tokens():
         "requestContext": {"http": {"method": "GET"}},
     }, None)
     assert response["statusCode"] == 400
+
+
+def test_status_handler_requires_session_sequence():
+    try:
+        processor.status_handler({
+            "device_id": "sensor-1",
+            "home_id": "home-test",
+            "topic_device_id": "sensor-1",
+            "status": "offline",
+            "session_id": "1793530000000",
+            "status_sequence": 0,
+        }, None)
+        assert False, "expected status sequence validation error"
+    except ValueError as error:
+        assert "sequence" in str(error)
