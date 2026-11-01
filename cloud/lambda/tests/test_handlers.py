@@ -13,8 +13,8 @@ os.environ.setdefault("DEVICES_TABLE_NAME", "devices-test")
 os.environ.setdefault("HOME_ID", "home-test")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import api_handler
-import handler as processor
+import api_handler  # noqa: E402
+import handler as processor  # noqa: E402
 
 
 class FakeTable:
