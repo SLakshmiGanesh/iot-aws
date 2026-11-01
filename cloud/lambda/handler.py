@@ -109,6 +109,7 @@ def handler(event, context):
     if not TABLE_NAME or not DEVICES_TABLE_NAME:
         raise RuntimeError("TABLE_NAME and DEVICES_TABLE_NAME must be configured")
     dynamodb = boto3.resource("dynamodb")
+    duplicate = False
     try:
         dynamodb.Table(TABLE_NAME).put_item(
             Item=item,
@@ -118,7 +119,11 @@ def handler(event, context):
         if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
             _log("telemetry_write_failed", device_id=device)
             raise
+        duplicate = True
         _log("duplicate_telemetry_ignored", device_id=device, event_id=item["event_id"])
+    except BotoCoreError:
+        _log("telemetry_write_failed", device_id=device)
+        raise
 
     try:
         dynamodb.Table(DEVICES_TABLE_NAME).update_item(
@@ -146,8 +151,8 @@ def handler(event, context):
         _log("device_registry_update_failed", device_id=device)
         raise
 
-    _log("telemetry_processed", device_id=device, event_id=item["event_id"], alert_status=item["alert_status"])
-    return {"stored": True, "device_id": device, "event_id": item["event_id"], "alert_status": item["alert_status"]}
+    _log("telemetry_processed", device_id=device, event_id=item["event_id"], alert_status=item["alert_status"], duplicate=duplicate)
+    return {"stored": not duplicate, "device_id": device, "event_id": item["event_id"], "alert_status": item["alert_status"]}
 
 
 def status_handler(event, context):
