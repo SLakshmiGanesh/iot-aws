@@ -43,7 +43,7 @@ CloudFront ──► React dashboard ──► API Gateway ──► API Lambda
     └── serves static files from a private S3 bucket
 ```
 
-CloudWatch alarms track selected Lambda failures and throttles. API CORS is configured for the deployed dashboard origin, and API throttling limits request volume.
+CloudWatch tracks Lambda errors/throttles and alerts when the encrypted SQS failure queue receives an event. Lambda async failures retry up to the configured limit before entering that queue. The API is public and read-only; CORS is restricted to the dashboard origin, but CORS is not authentication. The current stack is for one configured home and must not serve confidential data.
 
 ### Local demo
 
@@ -91,7 +91,7 @@ The infrastructure does not provision IoT certificates or register physical devi
 | `cloud/lambda/` | AWS telemetry processor, API handler, and package builder |
 | `infra/terraform/` | AWS resource definitions and deployment configuration |
 | `simulator/` | Local telemetry publisher for the demo |
-| `docs/` | Deployment, architecture, API, and security guides |
+| `docs/` | Deployment, architecture, API, security, operations, data model, testing, and cost guides |
 
 ## Checks
 
@@ -114,9 +114,12 @@ npm run build
 
 Lambda and Terraform checks are also configured in GitHub Actions where the required tools are available.
 
-## Scope and limitations
+## Engineering guides\n\n- [Architecture](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Development](docs/DEVELOPMENT.md)\n- [Security](docs/SECURITY.md) · [Threat model](docs/THREAT_MODEL.md) · [Operations](docs/OPERATIONS.md)\n- [Data model](docs/DATA_MODEL.md) · [Testing](docs/TESTING.md) · [Cost estimation](docs/COST_ESTIMATION.md)\n\n## Scope and limitations
 
 - The AWS dashboard API is read-only; device command publishing is not implemented.
 - ECS/Fargate hosting is not part of this project.
 - Wokwi can simulate the firmware and wiring, but it does not provision AWS IoT certificates.
+- The AWS API has no user authentication; home scoping does not make the public endpoint private.
+- The telemetry table is keyed by device and timestamp; device identifiers must be unique wherever a table is shared.
+- AWS alarms do not currently send notifications, and certificate rotation remains an operator procedure.
 - Alert thresholds are demonstration settings and are not health or safety guidance.
