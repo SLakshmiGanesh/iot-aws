@@ -1,6 +1,6 @@
 # AWS deployment
 
-The Terraform stack provisions AWS IoT telemetry routing, Lambda processing, DynamoDB telemetry and device registry tables, a rate-limited read-only API Gateway HTTP API, IAM, CloudWatch logs, and a private S3 + CloudFront dashboard. **No AWS resources have been deployed from this repository.** ECS/Fargate is not included.
+The Terraform stack provisions AWS IoT telemetry routing, Lambda processing, DynamoDB telemetry and device registry tables, a rate-limited read-only API Gateway HTTP API, IAM, CloudWatch logs and alarms, bounded Lambda retries with an encrypted SQS failure queue, and a private S3 + CloudFront dashboard. **No AWS resources have been deployed from this repository.** ECS/Fargate is not included.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ terraform apply tfplan
 terraform output
 ```
 
-Terraform outputs include `dashboard_url`, `api_url`, `dashboard_bucket_name`, `cloudfront_distribution_id`, and the generated IoT policy name. Telemetry expires after 90 days by default; set `telemetry_retention_days` in the Terraform plan to adjust it. CloudWatch error/throttle alarms are created without notification targets. The CloudFront default certificate provides an HTTPS URL without requiring a custom domain. A custom domain and ACM certificate can be added later.
+Terraform outputs include `dashboard_url`, `api_url`, `dashboard_bucket_name`, `cloudfront_distribution_id`, and the generated IoT policy name. Telemetry expires after 90 days by default; set `telemetry_retention_days` in the Terraform plan to adjust it. CloudWatch Lambda error/throttle and SQS backlog alarms are created without notification targets. Lambda asynchronous failures retry up to two times within one hour, then enter the encrypted 14-day SQS failure queue; inspect and redrive messages manually after resolving the cause. The CloudFront default certificate provides an HTTPS URL without requiring a custom domain. A custom domain and ACM certificate can be added later.
 
 ## Publish the dashboard
 
