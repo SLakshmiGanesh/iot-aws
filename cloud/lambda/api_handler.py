@@ -50,9 +50,12 @@ def _encode_token(key: dict[str, Any] | None) -> str | None:
     return base64.urlsafe_b64encode(json.dumps(key, default=_json_default).encode()).decode().rstrip("=")
 
 
-def _query_devices(limit: int = 200) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+def _query_devices(
+    limit: int = 200,
+    start_key: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     items: list[dict[str, Any]] = []
-    key = None
+    key = start_key
     while len(items) < limit:
         kwargs: dict[str, Any] = {
             "KeyConditionExpression": Key("home_id").eq(HOME_ID),
@@ -159,7 +162,16 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if method == "GET" and path == "/health":
         return _response(200, {"status": "ok", "mode": "aws"})
     if method == "GET" and path == "/api/v1/devices":
-        items, next_key = _query_devices(200)
+        try:
+            limit = int(params.get("limit", "200"))
+            if not 1 <= limit <= 500:
+                raise ValueError
+        except (TypeError, ValueError):
+            return _response(400, {"error": {"code": "invalid_limit", "message": "limit must be between 1 and 500"}})
+        token = _decode_token(params.get("next_token"))
+        if params.get("next_token") and token is None:
+            return _response(400, {"error": {"code": "invalid_next_token", "message": "next_token is invalid"}})
+        items, next_key = _query_devices(limit, token)
         return _response(200, {"items": items, "total": len(items), "next_token": _encode_token(next_key)})
     if method == "GET" and path == "/api/v1/analytics/summary":
         items, _ = _query_devices(200)
