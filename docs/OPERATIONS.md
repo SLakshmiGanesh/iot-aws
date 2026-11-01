@@ -27,6 +27,10 @@ The local demo exposes `GET /health`. AWS exposes `GET /health` through API Gate
 3. Call `/health`, then the device-list endpoint.
 4. Check API Lambda logs and DynamoDB query errors.
 
+## Failure queue
+
+The encrypted SQS failure queue retains failed asynchronous Lambda events for up to 14 days after bounded retries. When its CloudWatch alarm fires, inspect the queue and corresponding Lambda logs, identify the fault, and verify whether telemetry was partially written before deciding whether to redrive or discard a message. Do not replay messages until the cause is fixed; the processor's device/timestamp conditional write makes repeated deliveries safe for the same key. Automated redrive tooling is not configured.
+
 ## Recovery
 
 - Rebuild the Lambda package from source and redeploy through a reviewed Terraform plan.
@@ -36,4 +40,4 @@ The local demo exposes `GET /health`. AWS exposes `GET /health` through API Gate
 
 ## Operational gaps
 
-No automated dead-letter queue, on-call notification, certificate rotation service, backup export, or restore drill is currently configured. Add these before relying on the platform for critical monitoring.
+On-call notifications, certificate rotation automation, backup export, and restore drills are not currently configured. Add these before relying on the platform for critical monitoring.
