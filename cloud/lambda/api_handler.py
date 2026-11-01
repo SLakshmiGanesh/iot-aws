@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import json
+from contextvars import ContextVar
 import os
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -18,6 +19,7 @@ HOME_ID = os.getenv("HOME_ID", "demo-home")
 dynamodb = boto3.resource("dynamodb")
 telemetry = dynamodb.Table(TABLE_NAME)
 devices_table = dynamodb.Table(DEVICES_TABLE_NAME)
+REQUEST_ID: ContextVar[str] = ContextVar("request_id", default="unknown")
 
 
 def _json_default(value: Any):
@@ -29,7 +31,11 @@ def _json_default(value: Any):
 def _response(status: int, body: Any) -> dict[str, Any]:
     return {
         "statusCode": status,
-        "headers": {"content-type": "application/json; charset=utf-8"},
+        "headers": {
+            "content-type": "application/json; charset=utf-8",
+            "cache-control": "no-store",
+            "x-request-id": REQUEST_ID.get(),
+        },
         "body": json.dumps(body, default=_json_default),
     }
 
@@ -165,6 +171,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     method = request.get("method", "GET").upper()
     path = event.get("rawPath", "/")
     params = event.get("queryStringParameters") or {}
+    request_id = event.get("requestContext", {}).get("requestId") or getattr(context, "aws_request_id", "unknown")
+    REQUEST_ID.set(str(request_id))
+    print(json.dumps({"event": "api_request", "request_id": str(request_id), "method": method}))
 
     if method == "GET" and path == "/health":
         return _response(200, {"status": "ok", "mode": "aws"})
