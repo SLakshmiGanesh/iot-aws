@@ -172,6 +172,13 @@ def status_handler(event, context):
         raise ValueError("status event is outside the configured home")
     if status not in ("online", "offline"):
         raise ValueError("invalid device status")
+    session_id = event.get("session_id")
+    expected_sequence = 0 if status == "online" else 1
+    sequence = event.get("status_sequence")
+    if not isinstance(session_id, str) or not re.fullmatch(r"[0-9]{13}", session_id):
+        raise ValueError("invalid status session_id")
+    if isinstance(sequence, bool) or sequence != expected_sequence:
+        raise ValueError("invalid status sequence")
     if not DEVICES_TABLE_NAME:
         raise RuntimeError("DEVICES_TABLE_NAME must be configured")
 
@@ -179,10 +186,15 @@ def status_handler(event, context):
     try:
         boto3.resource("dynamodb").Table(DEVICES_TABLE_NAME).update_item(
             Key={"home_id": home_id, "device_id": device},
-            UpdateExpression="SET #status=:status, last_status_at=:updated_at",
-            ConditionExpression="attribute_exists(home_id) AND (attribute_not_exists(last_status_at) OR last_status_at <= :updated_at)",
+            UpdateExpression="SET #status=:status, last_status_at=:updated_at, session_id=:session_id, status_sequence=:sequence",
+            ConditionExpression="attribute_exists(home_id) AND (attribute_not_exists(session_id) OR session_id < :session_id OR (session_id = :session_id AND status_sequence <= :sequence))",
             ExpressionAttributeNames={"#status": "status"},
-            ExpressionAttributeValues={":status": status, ":updated_at": updated_at},
+            ExpressionAttributeValues={
+                ":status": status,
+                ":updated_at": updated_at,
+                ":session_id": session_id,
+                ":sequence": sequence,
+            },
         )
     except ClientError as error:
         code = error.response.get("Error", {}).get("Code")
