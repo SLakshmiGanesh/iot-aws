@@ -76,4 +76,4 @@ def test_time_range_must_be_ordered_and_timezone_aware(client):
         "/api/v1/devices/sensor-test/telemetry",
         params={"since": "2026-11-01T00:00:00"},
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
