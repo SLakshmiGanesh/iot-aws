@@ -1,34 +1,53 @@
 # Architecture
 
+## Cloud data flow
+
 ```mermaid
 flowchart LR
-  ESP[ESP32 and sensors] -->|MQTT TLS QoS 1| IOT[AWS IoT Core]
-  IOT --> RULE[Telemetry IoT Rule]
-  IOT --> PRES[Status/LWT IoT Rule]
-  RULE --> PROC[Telemetry processor Lambda]
-  PRES --> STATUS[Presence Lambda]
-  STATUS --> REG
-  PROC --> HIST[(DynamoDB telemetry)]
-  PROC --> REG[(Per-home device registry)]
-  HIST --> READ[Read API Lambda]
-  REG --> READ
-  READ --> APIGW[API Gateway HTTP API]
-  APIGW --> UI[React dashboard]
-  UI --> CF[CloudFront HTTPS]
+  ESP[ESP32 sensor device] -->|MQTT over TLS, QoS 1| IOT[AWS IoT Core]
+  IOT --> TR[Telemetry rule with topic identity]
+  IOT --> SR[Presence and Last Will rule]
+  TR --> P[Telemetry Lambda]
+  SR --> S[Presence Lambda]
+  P -->|validated, home-scoped event| HIST[(DynamoDB telemetry)]
+  P -->|newer timestamp only| REG[(DynamoDB device registry)]
+  S --> REG
+  P -. async failure after bounded retries .-> DLQ[(Encrypted SQS failure queue)]
+  S -. async failure after bounded retries .-> DLQ
+  HIST --> API[Read-only API Lambda]
+  REG --> API
+  API --> GW[API Gateway HTTP API]
+  CF[CloudFront HTTPS] --> UI[React dashboard]
+  UI --> GW
   CF --> S3[Private S3 origin]
-  SIM[Local simulator] --> FAST[FastAPI local API]
-  FAST --> SQLITE[(SQLite)]
-  SQLITE --> UI
+  CW[CloudWatch alarms and logs] -. monitors .-> P
+  CW -. monitors .-> S
+  CW -. monitors .-> DLQ
 ```
 
-## Cloud data model and access patterns
+The IoT rules add home and device identity from the MQTT topic. The processor checks those values against the configured home and payload before storing a reading. Telemetry is stored with a UTC timestamp and home ID. Repeated device/timestamp writes are conditional; the registry only advances to a newer telemetry timestamp. Lambda asynchronous failures are retried up to the configured limit and then sent to the encrypted SQS failure queue. An alarm fires when that queue has visible messages.
 
-- Telemetry table: partition key `device_id`, sort key normalized UTC `timestamp`; supports bounded, device-specific range queries.
-- Alert GSI: `alert_status` partition key and `timestamp` sort key; supports warning/critical alert queries without scanning telemetry.
-- Device registry table: `home_id` partition key and `device_id` sort key; holds the latest known sensor values for summaries and device selection.
-- Processor writes each historical reading and conditionally updates registry state only when its timestamp is newer, preventing delayed messages from replacing a newer device state.
-- Read API is public but read-only, CORS-limited to the CloudFront origin, rate-limited, and has DynamoDB Query/GetItem permissions only.
-- A status/LWT rule updates online/offline presence without overwriting the most recent sensor timestamp. CloudWatch alarms cover Lambda errors and throttles.
-- Telemetry rows expire through DynamoDB TTL after the configured retention window (90 days by default).
+## Local demo data flow
 
-Local mode uses SQLite demo data. AWS resources are Terraform definitions and are not deployed by this repository automatically. IoT certificates and Thing attachment are provisioned separately by an operator.
+```mermaid
+flowchart LR
+  SIM[Telemetry simulator] --> API[FastAPI local API]
+  API --> DB[(SQLite)]
+  UI[React dashboard] --> API
+```
+
+Local mode uses SQLite and synthetic demo readings. It does not connect to AWS or reflect cloud resources.
+
+## Storage and access patterns
+
+- **Telemetry table:** partition key `device_id`, sort key normalized UTC `timestamp`; used for per-device history.
+- **Alert index:** `alert_status` partition key and `timestamp` sort key; alert reads filter to the configured `home_id`.
+- **Device registry:** `home_id` partition key and `device_id` sort key; holds latest values and presence.
+- **Retention:** `expires_at` TTL is set from the configured retention period; DynamoDB TTL deletion is asynchronous.
+- **API:** public, read-only API Gateway routes; Lambda IAM is limited to DynamoDB Query/GetItem. CORS permits the provisioned CloudFront origin, but CORS is not authentication. The current stack is intended for one configured home and must not serve confidential data.
+
+The telemetry table key is not home-partitioned. Device identifiers should be globally unique when a table is shared. A true multi-tenant service needs a revised key/index layout and authenticated API authorization.
+
+## Operations
+
+CloudWatch log groups have configured retention. Alarms cover Lambda errors, throttles, and visible messages in the failure queue. Alarms do not currently send notifications. IoT certificates and Thing attachment are provisioned separately by an operator. See [operations](OPERATIONS.md), [security](SECURITY.md), and the [threat model](THREAT_MODEL.md).
