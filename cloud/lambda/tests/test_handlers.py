@@ -4,6 +4,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from botocore.exceptions import ClientError
+
 os.environ.setdefault("AWS_EC2_METADATA_DISABLED", "true")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
 os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
@@ -22,8 +24,11 @@ class FakeTable:
         self.items = items or []
         self.writes = []
         self.queries = []
+        self.put_error = None
 
     def put_item(self, **kwargs):
+        if self.put_error:
+            raise self.put_error
         self.writes.append(kwargs["Item"])
 
     def update_item(self, **kwargs):
@@ -159,3 +164,20 @@ def test_status_handler_updates_presence(monkeypatch):
     assert result["updated"] is True
     assert devices.writes[0]["Key"] == {"home_id": "home-test", "device_id": "sensor-1"}
     assert devices.writes[0]["ExpressionAttributeValues"][":status"] == "offline"
+
+
+def test_duplicate_telemetry_is_reported_without_overwriting(monkeypatch):
+    telemetry = FakeTable()
+    telemetry.put_error = ClientError(
+        {"Error": {"Code": "ConditionalCheckFailedException", "Message": "duplicate"}},
+        "PutItem",
+    )
+    devices = FakeTable()
+    monkeypatch.setattr(
+        processor.boto3, "resource",
+        lambda _: FakeDynamo({"telemetry-test": telemetry, "devices-test": devices}),
+    )
+    result = processor.handler(sample_event(), None)
+    assert result["stored"] is False
+    assert result["device_id"] == "sensor-1"
+    assert len(devices.writes) == 1
